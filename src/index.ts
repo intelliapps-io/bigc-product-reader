@@ -34,11 +34,13 @@ function mapRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
   let entity: CLEntity = {
     name: record[BCFieldName['Product Name']],
     price: record[BCFieldName['Price']].trim().replace("[FIXED]", ""),
+    SKU: record[BCFieldName['Product Code/SKU']],
+    description: record[BCFieldName['Product Description']],
     price_type: "Fixed",
     cost: 0,
-    SKU: record[BCFieldName['Product Code/SKU']],
     tax_rates: ['DEFAULT'],
-    quantity: 0
+    quantity: 0,
+    category: record[BCFieldName['Category']]
   }
 
   const parentName = parentRecord ? parentRecord[BCFieldName['Product Name']] : undefined
@@ -66,11 +68,11 @@ async function writeCSV(data: CLEntity[], FILE_PATH: string): Promise<any> {
   return new Promise((resolve: (data: any) => void, reject: (err: Error) => void) => {
     let csv = ""
     let output: any[][] = [
-      ["name", "price", "SKU", "price_type", "cost", "tax_rates", "quantity",]
+      ["name", "price", "SKU", "category", "description", "price_type", "cost", "tax_rates", "quantity",]
     ]
     for (let i = 0; i < data.length; i++) {
       const entity = data[i]
-      const row = [entity.name, entity.price, entity.SKU, entity.price_type, entity.cost, entity.tax_rates, entity.quantity]
+      const row = [entity.name, entity.price, entity.SKU, entity.category, entity.description, entity.price_type, entity.cost, entity.tax_rates, entity.quantity]
       output.push(row)
     }
 
@@ -97,6 +99,7 @@ async function main() {
   const FILE_PATH = `${__dirname}/products.csv`;
   const OUT_PATH = `${__dirname}/result.csv`;
   const parsedData = await parseData(FILE_PATH)
+  /** Mapped data variable */
   let output: CLEntity[] = []
 
   /** Map parsedData to CLEntity */
@@ -105,24 +108,46 @@ async function main() {
     let record = parsedData[i] as any
     let entity: CLEntity
 
-    // set or reset parent record
+    /** Parent Record */
     if (record[BCFieldName['Item Type']] === BCItemType['Product']) {
+      // set or reset parent record
       parentRecord = undefined
       entity = mapRecordToCLEntity(record, parentRecord)
       if (entity.SKU)
         output.push(entity)
     }
-    else if (record[BCFieldName['Item Type']].trim() === BCItemType['SKU'] && typeof parentRecord === "undefined") {
-      parentRecord = parsedData[i - 1]
+
+    /** SKU Record */
+    else if (record[BCFieldName['Item Type']].trim() === BCItemType['SKU']) {
+      // set parent record
+      if (typeof parentRecord === "undefined")
+        parentRecord = parsedData[i - 1]
+
       entity = mapRecordToCLEntity(record, parentRecord)
+
       if (entity.SKU)
         output.push(entity)
+    }
+
+    /** Rule Record */
+    else if (record[BCFieldName['Item Type']].trim() === BCItemType['Rule']) {
+      // get rule price
+      const sku = record[BCFieldName['Product Code/SKU']]
+      const price = record[BCFieldName['Price']].trim().replace("[FIXED]", "")
+
+      // find existing product
+      for (let j = 0; j < output.length; j++) {
+        if (output[j].SKU === sku && price) {
+          output[j] = { ...output[j], price } // update price
+          // return
+        }
+      }
     }
   }
 
   // console.log(output)
-  const result = await writeCSV(output, OUT_PATH)
-  console.log(result);
+  const csvString = await writeCSV(output, OUT_PATH)
+  console.log(csvString);
 }
 
 main()

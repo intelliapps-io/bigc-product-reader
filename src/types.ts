@@ -94,14 +94,16 @@ export enum CLFieldName {
 }
 
 export interface CLEntity {
-  clover_ID?: string
   name: string
   price: number
   price_type: string
-  price_unit?: string
   tax_rates: string[]
   cost: number
-  product_code?: number
   SKU: number
   quantity: number
+  clover_ID?: string
+  price_unit?: string
+  description?: string
+  product_code?: number
+  category?: string
 }
