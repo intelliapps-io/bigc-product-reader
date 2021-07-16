@@ -85,6 +85,8 @@ async function writeCSV(data: CLEntity[], FILE_PATH: string): Promise<any> {
     }
 
     resolve(csv)
+
+    fs.writeFileSync(FILE_PATH, csv, { encoding: 'utf8' })
   })
 }
 
