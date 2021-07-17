@@ -1,36 +1,10 @@
 import fs from 'fs'
 import parse from 'csv-parse'
-import transform from 'stream-transform'
 import { BCFieldName, BCItemType, CLEntity } from './types'
-
-/** Parse Data from CSV */
-function parseData(FILE_PATH: string): Promise<object[]> {
-  return new Promise((resolve: (data: object[]) => void, reject: (err: Error) => void) => {
-    let output: object[] = []
-
-    const parser = parse({
-      delimiter: ',',
-      columns: true,
-      autoParse: true,
-    })
-
-    parser.on('readable', function () {
-      let record
-      while (record = parser.read() as any) {
-        output.push(record)
-      }
-    })
-
-    parser.on('error', function (err) { reject(err) })
-
-    parser.on('end', function () { resolve(output) })
-
-    fs.createReadStream(FILE_PATH).pipe(parser);
-  })
-}
+import { parseCSVData } from './helpers'
 
 /** Create Clover Record from BigCommerce */
-function mapRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
+function mapBCRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
   let entity: CLEntity = {
     name: record[BCFieldName['Product Name']],
     price: record[BCFieldName['Price']].trim().replace("[FIXED]", ""),
@@ -72,7 +46,9 @@ async function writeCSV(data: CLEntity[], FILE_PATH: string): Promise<any> {
     ]
     for (let i = 0; i < data.length; i++) {
       const entity = data[i]
-      const row = [entity.name, entity.price, entity.SKU, entity.category, entity.description, entity.price_type, entity.cost, entity.tax_rates, entity.quantity]
+      const row = [entity.name, entity.price, entity.SKU, entity.category,
+        entity.description && entity.description.length < 20 ? entity.description : "",
+        entity.price_type, entity.cost, entity.tax_rates, entity.quantity]
       output.push(row)
     }
 
@@ -96,9 +72,9 @@ async function writeCSV(data: CLEntity[], FILE_PATH: string): Promise<any> {
  * Entry - MAIN
  */
 async function main() {
-  const FILE_PATH = `${__dirname}/products.csv`;
+  const FILE_PATH = `${__dirname}/source_data/bc-products.csv`;
   const OUT_PATH = `${__dirname}/result.csv`;
-  const parsedData = await parseData(FILE_PATH)
+  const parsedData = await parseCSVData(FILE_PATH)
   /** Mapped data variable */
   let output: CLEntity[] = []
 
@@ -112,7 +88,7 @@ async function main() {
     if (record[BCFieldName['Item Type']] === BCItemType['Product']) {
       // set or reset parent record
       parentRecord = undefined
-      entity = mapRecordToCLEntity(record, parentRecord)
+      entity = mapBCRecordToCLEntity(record, parentRecord)
       if (entity.SKU)
         output.push(entity)
     }
@@ -123,7 +99,7 @@ async function main() {
       if (typeof parentRecord === "undefined")
         parentRecord = parsedData[i - 1]
 
-      entity = mapRecordToCLEntity(record, parentRecord)
+      entity = mapBCRecordToCLEntity(record, parentRecord)
 
       if (entity.SKU)
         output.push(entity)
@@ -145,7 +121,6 @@ async function main() {
     }
   }
 
-  // console.log(output)
   const csvString = await writeCSV(output, OUT_PATH)
   console.log(csvString);
 }
