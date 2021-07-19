@@ -99,8 +99,10 @@ export interface CLEntity {
   price_type: string
   tax_rates: string[]
   cost: number
-  SKU: number
+  SKU: string
   quantity: number
+  clName?: string
+  bcSKU?: string
   clover_ID?: string
   price_unit?: string
   description?: string

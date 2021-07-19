@@ -1,7 +1,8 @@
 import fs from 'fs'
 import parse from 'csv-parse'
 import { BCFieldName, BCItemType, CLEntity } from './types'
-import { parseCSVData } from './helpers'
+import { parseCSVData, writeCSV } from './helpers'
+import { mergeProducts } from './mergeProducts'
 
 /** Create Clover Record from BigCommerce */
 function mapBCRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
@@ -14,10 +15,13 @@ function mapBCRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
     cost: 0,
     tax_rates: ['DEFAULT'],
     quantity: 0,
-    category: record[BCFieldName['Category']]
+    category: record[BCFieldName['Category']],
+    clover_ID: "",
+    clName: ""
   }
 
   const parentName = parentRecord ? parentRecord[BCFieldName['Product Name']] : undefined
+  const parentCategory = parentRecord ? parentRecord[BCFieldName['Category']] : undefined
   if (parentName) {
     const splitChildName = record[BCFieldName['Product Name']]
       .replace('[RT]', '')
@@ -30,6 +34,10 @@ function mapBCRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
     // set name
     entity.name = `${parentName} [${splitChildName}]`
 
+    // set parent cagegory
+    if (parentCategory)
+      entity.category = parentCategory;
+
     // carry price
     if (!entity.price)
       entity.price = parentRecord[BCFieldName['Price']]
@@ -38,43 +46,14 @@ function mapBCRecordToCLEntity(record: any, parentRecord?: any): CLEntity {
   return entity
 }
 
-async function writeCSV(data: CLEntity[], FILE_PATH: string): Promise<any> {
-  return new Promise((resolve: (data: any) => void, reject: (err: Error) => void) => {
-    let csv = ""
-    let output: any[][] = [
-      ["name", "price", "SKU", "category", "description", "price_type", "cost", "tax_rates", "quantity",]
-    ]
-    for (let i = 0; i < data.length; i++) {
-      const entity = data[i]
-      const row = [entity.name, entity.price, entity.SKU, entity.category,
-        entity.description && entity.description.length < 20 ? entity.description : "",
-        entity.price_type, entity.cost, entity.tax_rates, entity.quantity]
-      output.push(row)
-    }
-
-    for (let i = 0; i < output.length; i++) {
-      const row = output[i]
-      let row_csv = ""
-      for (let j = 0; j < row.length; j++) {
-        const field = row[j]
-        row_csv += `${!field ? "" : `"${field}"`}${j - 1 === row.length ? "" : ","}`
-      }
-      csv += row_csv + "\n"
-    }
-
-    resolve(csv)
-
-    fs.writeFileSync(FILE_PATH, csv, { encoding: 'utf8' })
-  })
-}
-
 /** 
  * Entry - MAIN
  */
 async function main() {
-  const FILE_PATH = `${__dirname}/source_data/bc-products.csv`;
-  const OUT_PATH = `${__dirname}/result.csv`;
+  const FILE_PATH = `${__dirname}/source_data/bc-products.csv`
+  const OUT_PATH = `${__dirname}/result.csv`
   const parsedData = await parseCSVData(FILE_PATH)
+
   /** Mapped data variable */
   let output: CLEntity[] = []
 
@@ -121,8 +100,22 @@ async function main() {
     }
   }
 
-  const csvString = await writeCSV(output, OUT_PATH)
-  console.log(csvString);
+  // const csvString = await writeCSV(output, OUT_PATH)
+  const csvString = await writeCSV<CLEntity>(
+    output,
+    ["name", "clName", "price", "SKU", "bcSKU", "category", "description",
+      "price_type", "cost", "tax_rates", "quantity", "clover_ID"],
+    (entity) => [entity.name, "", entity.price, entity.SKU, "", entity.category,
+    entity.description && entity.description.length < 20 ? entity.description : "",
+    entity.price_type, entity.cost, entity.tax_rates, entity.quantity, entity.clover_ID],
+    OUT_PATH
+  )
+
+  console.log("Exported products")
+
+  await mergeProducts({ FILES_PATH: { bigCommerce: OUT_PATH, clover: `${__dirname}/source_data/clover-inventory.csv` } })
+  
+  console.log("Merged products")
 }
 
 main()
