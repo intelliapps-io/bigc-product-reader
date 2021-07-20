@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "dev-old": "ts-node-dev ./old_src/index.ts",
+    "merge-old": "ts-node ./old_src/mergeProducts.ts",
     "dev": "ts-node-dev ./src/index.ts",
     "merge": "ts-node ./src/mergeProducts.ts"
   },

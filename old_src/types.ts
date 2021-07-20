@@ -1,7 +1,7 @@
 /**
  * BigCommerce 
  */
- export enum BCItemType {
+export enum BCItemType {
   "Product" = "Product",
   "SKU" = "SKU",
   "Rule" = "Rule",

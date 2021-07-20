@@ -1,12 +1,13 @@
-import fsPromises from 'fs'
+import fs, { promises as fsPromises } from 'fs'
 import parse from 'csv-parse'
+import { CLEntity } from './types'
 
 /**
  * Parse CSV from file
  * @param FILE_PATH 
  * @returns Promise object array
  */
-export function readCSV<T = any>(FILE_PATH: string): Promise<T[]> {
+export function parseCSVData<T = any>(FILE_PATH: string): Promise<T[]> {
   return new Promise((resolve: (data: T[]) => void, reject: (err: Error) => void) => {
     let output: T[] = []
 
@@ -26,11 +27,9 @@ export function readCSV<T = any>(FILE_PATH: string): Promise<T[]> {
 
     parser.on('error', function (err) { reject(err) })
 
-    // parser.on('end', function () { resolve(output) })
+    parser.on('end', function () { resolve(output) })
 
-    fsPromises.createReadStream(FILE_PATH).pipe(parser).on("end", () => {
-      resolve(output)
-    });
+    fs.createReadStream(FILE_PATH).pipe(parser);
   })
 }
 
@@ -40,13 +39,14 @@ export function readCSV<T = any>(FILE_PATH: string): Promise<T[]> {
  * @param colums column names as string
  * @param getFields fuction returning the column for the row of the csv, from the entity providied
  * @param FILE_PATH optional, path to write the csv file
+ * @returns 
  */
-export async function writeCSV<T>(options: { data: T[], colums: string[], getFields: (row: T) => any[], delimiter: string, FILE_PATH?: string }): Promise<any> {
-  const { colums, data, delimiter, getFields, FILE_PATH } = options
+export async function writeCSV<T>(data: T[], colums: string[], getFields: (row: T) => any[], delimiter: string, FILE_PATH?: string): Promise<any> {
   return new Promise((resolve: (data: any) => void, reject: (err: Error) => void) => {
     let csv = ""
-    let output: any[][] = [colums]
-
+    let output: any[][] = [
+      colums
+    ]
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
       output.push(getFields(row))
@@ -57,19 +57,31 @@ export async function writeCSV<T>(options: { data: T[], colums: string[], getFie
       let row_csv = ""
       for (let j = 0; j < row.length; j++) {
         const field = row[j]
-        row_csv += `${!field ? "" : `"${field}"`}${j - 1 === row.length ? "" : delimiter}`
+        // if (i === 0)
+        //   row_csv += `${!field ? "" : `${field}`}${j - 1 === row.length ? "" : delimiter}`
+        // else
+          row_csv += `${!field ? "" : `${field}`}${j - 1 === row.length ? "" : delimiter}`
       }
       csv += row_csv + "\n"
     }
 
     if (FILE_PATH)
-      fsPromises.writeFile(FILE_PATH, csv, { encoding: 'utf8' }, (err: Error | null) => {
-        if (err)
-          reject(err)
-        else
-          resolve(csv)
-      })
+      fsPromises.writeFile(FILE_PATH, csv, { encoding: 'utf8' })
+        .catch(err => reject(err))
+        .then(() => resolve(csv))
     else
       resolve(csv)
   })
+}
+
+/**
+ * Remove item from array
+ * @param array Array to edit
+ * @param index item to remove
+ * @returns 
+ */
+export function removeAtIndex<T = any>(array: Array<T>, index: number) {
+  const copy = [...array]
+  copy.splice(index, 1)
+  return copy
 }
