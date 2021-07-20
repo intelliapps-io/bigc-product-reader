@@ -106,6 +106,6 @@ export interface CLEntity {
   clover_ID?: string
   price_unit?: string
   description?: string
-  product_code?: number
+  product_code?: string
   category?: string
 }
